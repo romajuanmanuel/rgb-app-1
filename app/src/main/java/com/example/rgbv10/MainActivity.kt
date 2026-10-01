@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -30,8 +31,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.rgbv10.data.infrared.TeclasControl
@@ -43,9 +46,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            RGBV10Theme {
+            val viewModel: ControlViewModel = viewModel()
+            val modoOscuro by viewModel.modoOscuro.collectAsState()
+
+            RGBV10Theme(darkTheme = modoOscuro) {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    PantallaControl(modifier = Modifier.padding(innerPadding))
+                    PantallaControl(
+                        modoOscuro = modoOscuro,
+                        modifier = Modifier.padding(innerPadding),
+                        viewModel = viewModel
+                    )
                 }
             }
         }
@@ -53,8 +63,13 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun PantallaControl(modifier: Modifier = Modifier, viewModel: ControlViewModel = viewModel()) {
+fun PantallaControl(
+    modoOscuro: Boolean,
+    modifier: Modifier = Modifier,
+    viewModel: ControlViewModel = viewModel()
+) {
     val teclaActual by viewModel.teclaActual.collectAsState()
+    val temaClaro = MaterialTheme.colorScheme.background.luminance() > 0.5f
 
     Column(
         modifier = modifier
@@ -62,6 +77,29 @@ fun PantallaControl(modifier: Modifier = Modifier, viewModel: ControlViewModel =
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Estado de la luz actual + cambio de tema
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            val colorActual = teclaActual?.let { Color(it.rojo, it.verde, it.azul) }
+            val esBlancoActual = teclaActual?.let { it.rojo == 255 && it.verde == 255 && it.azul == 255 } == true
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(colorActual ?: MaterialTheme.colorScheme.surfaceVariant)
+                    .then(
+                        if (esBlancoActual && temaClaro) Modifier.border(2.dp, Color.Black, CircleShape)
+                        else Modifier
+                    )
+            )
+            Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+                Text("Color actual", style = MaterialTheme.typography.labelMedium)
+                Text(teclaActual?.nombre ?: "Sin seleccionar", style = MaterialTheme.typography.titleMedium)
+            }
+            OutlinedButton(onClick = viewModel::alternarTema) {
+                Text(if (modoOscuro) "Tema claro" else "Tema oscuro")
+            }
+        }
+
         if (!viewModel.tieneIR) {
             Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.medium) {
                 Text(
@@ -90,14 +128,19 @@ fun PantallaControl(modifier: Modifier = Modifier, viewModel: ControlViewModel =
         ) {
             items(TeclasControl.COLORES) { tecla ->
                 val seleccionada = tecla == teclaActual
+                val esBlanco = tecla.rojo == 255 && tecla.verde == 255 && tecla.azul == 255
                 Box(
                     modifier = Modifier
                         .aspectRatio(1f)
                         .clip(CircleShape)
                         .background(Color(tecla.rojo, tecla.verde, tecla.azul))
                         .then(
-                            if (seleccionada) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                            else Modifier
+                            when {
+                                seleccionada -> Modifier.border(3.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                // En tema claro el blanco se pierde con el fondo: borde negro
+                                esBlanco && temaClaro -> Modifier.border(2.dp, Color.Black, CircleShape)
+                                else -> Modifier
+                            }
                         )
                         .clickable { viewModel.enviarTecla(tecla) }
                 )

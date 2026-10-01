@@ -12,7 +12,18 @@ class ControlViewModel(application: Application) : AndroidViewModel(application)
 
     private val irController = IrController(application)
 
+    private val prefs = application.getSharedPreferences("ajustes", Application.MODE_PRIVATE)
+
     val tieneIR: Boolean = irController.tieneSoporteIR()
+
+    // Tema oscuro por defecto; se recuerda la elección entre sesiones
+    private val _modoOscuro = MutableStateFlow(prefs.getBoolean(CLAVE_OSCURO, true))
+    val modoOscuro: StateFlow<Boolean> = _modoOscuro
+
+    fun alternarTema() {
+        _modoOscuro.value = !_modoOscuro.value
+        prefs.edit().putBoolean(CLAVE_OSCURO, _modoOscuro.value).apply()
+    }
 
     private val _teclaActual = MutableStateFlow<Tecla?>(null)
     val teclaActual: StateFlow<Tecla?> = _teclaActual
@@ -31,4 +42,8 @@ class ControlViewModel(application: Application) : AndroidViewModel(application)
     fun apagar() = enviarTecla(TeclasControl.APAGAR)
     fun subirBrillo() = enviarTecla(TeclasControl.BRILLO_MAS)
     fun bajarBrillo() = enviarTecla(TeclasControl.BRILLO_MENOS)
+
+    private companion object {
+        const val CLAVE_OSCURO = "modo_oscuro"
+    }
 }
