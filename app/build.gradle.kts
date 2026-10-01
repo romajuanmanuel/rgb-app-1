@@ -45,6 +45,7 @@ dependencies {
     // Android Core y Lifecycle (vía catálogo)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     // Dependencias adicionales (sin duplicados con el catálogo)
     implementation("androidx.appcompat:appcompat:1.6.1")
