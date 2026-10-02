@@ -38,8 +38,17 @@ class ControlViewModel(application: Application) : AndroidViewModel(application)
         _teclaActual.value = irController.enviarColor(rojo, verde, azul)
     }
 
-    fun encender() = enviarTecla(TeclasControl.ENCENDER)
-    fun apagar() = enviarTecla(TeclasControl.APAGAR)
+    // El IR es de una sola vía: se asume encendida al abrir y se actualiza con lo que envía la app
+    private val _encendida = MutableStateFlow(true)
+    val encendida: StateFlow<Boolean> = _encendida
+
+    fun encender() {
+        if (irController.enviar(TeclasControl.ENCENDER)) _encendida.value = true
+    }
+
+    fun apagar() {
+        if (irController.enviar(TeclasControl.APAGAR)) _encendida.value = false
+    }
     fun subirBrillo() = enviarTecla(TeclasControl.BRILLO_MAS)
     fun bajarBrillo() = enviarTecla(TeclasControl.BRILLO_MENOS)
 
