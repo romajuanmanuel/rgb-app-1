@@ -5,8 +5,19 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.drawscope.Stroke
+import kotlin.math.sin
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -86,12 +97,14 @@ fun PantallaControl(
 ) {
     val teclaActual by viewModel.teclaActual.collectAsState()
     val encendida by viewModel.encendida.collectAsState()
+    val efectoActivo by viewModel.efectoActivo.collectAsState()
 
     PantallaControlContenido(
         tieneIR = viewModel.tieneIR,
         modoOscuro = modoOscuro,
         encendida = encendida,
         teclaActual = teclaActual,
+        efectoActivo = efectoActivo,
         onAlternarTema = viewModel::alternarTema,
         onEncender = viewModel::encender,
         onApagar = viewModel::apagar,
@@ -109,6 +122,7 @@ fun PantallaControlContenido(
     modoOscuro: Boolean,
     encendida: Boolean,
     teclaActual: Tecla?,
+    efectoActivo: Tecla?,
     onAlternarTema: () -> Unit,
     onEncender: () -> Unit,
     onApagar: () -> Unit,
@@ -130,12 +144,13 @@ fun PantallaControlContenido(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            EstadoActual(c, teclaActual, onAlternarTema)
+            EstadoActual(c, teclaActual, efectoActivo, onAlternarTema)
             EstadoIR(c, tieneIR)
             PanelMando(
                 c = c,
                 encendida = encendida,
                 teclaActual = teclaActual,
+                efectoActivo = efectoActivo,
                 onEncender = onEncender,
                 onApagar = onApagar,
                 onSubirBrillo = onSubirBrillo,
@@ -156,7 +171,7 @@ private fun Color.neon(): Color = lerp(this, Color.White, 0.2f)
 private fun Tecla.neon(): Color = colorLuz().neon()
 
 @Composable
-private fun EstadoActual(c: CyberColores, tecla: Tecla?, onAlternarTema: () -> Unit) {
+private fun EstadoActual(c: CyberColores, tecla: Tecla?, efecto: Tecla?, onAlternarTema: () -> Unit) {
     val color = tecla?.colorLuz()
     // En tema claro el blanco se pierde con el fondo: contorno negro
     val borde = if (tecla?.esBlanco() == true && !c.oscuro) Color.Black else (color?.neon() ?: c.textoSuave)
@@ -169,26 +184,93 @@ private fun EstadoActual(c: CyberColores, tecla: Tecla?, onAlternarTema: () -> U
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .drawBehind { if (color != null) glowCirculo(color.neon(), c.glow, 8.dp.toPx()) }
-                .clip(CircleShape)
-                .background(color ?: c.tecla)
-                .border(2.dp, borde, CircleShape)
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            EtiquetaTecnica(c, "// COLOR ACTUAL")
-            Text(
-                text = (tecla?.nombre ?: "SIN SELECCIONAR").uppercase(),
-                color = c.texto,
-                fontFamily = FuenteTecnica,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-                letterSpacing = 1.sp
+        if (efecto != null) {
+            // Con un efecto activo, el círculo muestra el efecto en movimiento
+            MuestraEfecto(c, efecto, Modifier.size(44.dp))
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .drawBehind { if (color != null) glowCirculo(color.neon(), c.glow, 8.dp.toPx()) }
+                    .clip(CircleShape)
+                    .background(color ?: c.tecla)
+                    .border(2.dp, borde, CircleShape)
             )
         }
+        Column(modifier = Modifier.weight(1f)) {
+            EtiquetaTecnica(c, if (efecto != null) "// EFECTO ACTIVO" else "// COLOR ACTUAL")
+            NombreActual(c, (efecto?.nombre ?: tecla?.nombre ?: "SIN SELECCIONAR").uppercase())
+        }
         CyberChip(c, if (c.oscuro) "TEMA CLARO" else "TEMA OSCURO", onAlternarTema)
+    }
+}
+
+/**
+ * Nombre del color o efecto actual. Mantiene 18 sp y solo achica si no entra en una línea
+ * (por ejemplo "AMARILLO OSCURO"); la altura es fija para que el panel no se mueva.
+ */
+@Composable
+private fun NombreActual(c: CyberColores, texto: String) {
+    var tamano by remember(texto) { mutableFloatStateOf(18f) }
+    Box(modifier = Modifier.height(24.dp), contentAlignment = Alignment.CenterStart) {
+        Text(
+            text = texto,
+            color = c.texto,
+            fontFamily = FuenteTecnica,
+            fontWeight = FontWeight.Bold,
+            fontSize = tamano.sp,
+            letterSpacing = 1.sp,
+            maxLines = 1,
+            softWrap = false,
+            onTextLayout = { if (it.hasVisualOverflow && tamano > 10f) tamano -= 1f }
+        )
+    }
+}
+
+private fun colorTecla(nombre: String): Color =
+    TeclasControl.COLORES.first { it.nombre == nombre }.colorLuz()
+
+// Colores de la paleta del control usados por la muestra de cada efecto
+private val PALETA_FLASH = listOf("Rojo", "Verde", "Azul", "Amarillo", "Cian", "Magenta").map(::colorTecla)
+private val PALETA_FADE = listOf("Rojo", "Verde", "Azul").map(::colorTecla)
+private val PALETA_SMOOTH =
+    listOf("Rojo", "Naranja", "Amarillo", "Verde", "Cian", "Azul", "Violeta", "Magenta").map(::colorTecla)
+
+/** Color e intensidad (0..1) de la muestra en el instante [fase] (0..1 = 6 s). */
+private fun muestraEfecto(nombre: String, fase: Float, c: CyberColores): Pair<Color, Float> = when (nombre) {
+    // Flash: salta de un color a otro sin transición
+    "Flash" -> PALETA_FLASH[(fase * PALETA_FLASH.size).toInt().coerceAtMost(PALETA_FLASH.size - 1)] to 1f
+    // Strobe: destellos rápidos encendido/apagado
+    "Strobe" -> c.texto to if ((fase * 50).toInt() % 2 == 0) 1f else 0f
+    // Fade: cada color se enciende y se apaga suavemente
+    "Fade" -> {
+        val tramo = fase * 6
+        PALETA_FADE[tramo.toInt() % PALETA_FADE.size] to sin(Math.PI * (tramo - tramo.toInt())).toFloat()
+    }
+    // Smooth: recorre el espectro con transición continua
+    else -> {
+        val pos = fase * PALETA_SMOOTH.size
+        val i = pos.toInt().coerceAtMost(PALETA_SMOOTH.size - 1)
+        lerp(PALETA_SMOOTH[i], PALETA_SMOOTH[(i + 1) % PALETA_SMOOTH.size], pos - i) to 1f
+    }
+}
+
+@Composable
+private fun MuestraEfecto(c: CyberColores, efecto: Tecla, modifier: Modifier = Modifier) {
+    val transicion = rememberInfiniteTransition(label = "efecto")
+    val fase = transicion.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(6000, easing = LinearEasing)),
+        label = "fase"
+    )
+    Canvas(modifier) {
+        val (color, intensidad) = muestraEfecto(efecto.nombre, fase.value, c)
+        val neon = color.neon()
+        glowCirculo(neon, c.glow * intensidad, 8.dp.toPx())
+        drawCircle(c.tecla)
+        drawCircle(color.copy(alpha = intensidad))
+        drawCircle(neon, radius = size.minDimension / 2 - 1.dp.toPx(), style = Stroke(2.dp.toPx()))
     }
 }
 
@@ -215,6 +297,7 @@ private fun PanelMando(
     c: CyberColores,
     encendida: Boolean,
     teclaActual: Tecla?,
+    efectoActivo: Tecla?,
     onEncender: () -> Unit,
     onApagar: () -> Unit,
     onSubirBrillo: () -> Unit,
@@ -222,6 +305,8 @@ private fun PanelMando(
     onTecla: (Tecla) -> Unit
 ) {
     val colores = TeclasControl.COLORES
+    // Con un efecto activo ya no hay un color fijo seleccionado
+    val colorSeleccionado = if (efectoActivo == null) teclaActual else null
     val celda = Modifier.aspectRatio(1f)
 
     Column(
@@ -258,16 +343,17 @@ private fun PanelMando(
         }
 
         FilaMando {
-            colores.subList(0, 4).forEach { TeclaColor(c, it, it == teclaActual, onTecla, Modifier.weight(1f).then(celda)) }
+            colores.subList(0, 4).forEach { TeclaColor(c, it, it == colorSeleccionado, onTecla, Modifier.weight(1f).then(celda)) }
         }
 
         TeclasControl.EFECTOS.forEachIndexed { i, efecto ->
             FilaMando {
                 colores.subList(4 + i * 3, 7 + i * 3).forEach {
-                    TeclaColor(c, it, it == teclaActual, onTecla, Modifier.weight(1f).then(celda))
+                    TeclaColor(c, it, it == colorSeleccionado, onTecla, Modifier.weight(1f).then(celda))
                 }
                 CyberTecla(
                     c = c, neon = c.magenta, onClick = { onTecla(efecto) }, descripcion = efecto.nombre,
+                    activa = efecto == efectoActivo,
                     modifier = Modifier.weight(1f).then(celda)
                 ) { TextoTecla(efecto.nombre.uppercase(), c.magenta, 11.sp) }
             }
@@ -327,6 +413,7 @@ private fun PreviewOscuro() {
             modoOscuro = true,
             encendida = true,
             teclaActual = TeclasControl.COLORES[2],
+            efectoActivo = null,
             onAlternarTema = {}, onEncender = {}, onApagar = {},
             onSubirBrillo = {}, onBajarBrillo = {}, onTecla = {}
         )
@@ -342,6 +429,39 @@ private fun PreviewClaro() {
             modoOscuro = false,
             encendida = false,
             teclaActual = TeclasControl.COLORES[3],
+            efectoActivo = null,
+            onAlternarTema = {}, onEncender = {}, onApagar = {},
+            onSubirBrillo = {}, onBajarBrillo = {}, onTecla = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "Amarillo oscuro", heightDp = 800)
+@Composable
+private fun PreviewColorLargo() {
+    RGBV10Theme(darkTheme = true, dynamicColor = false) {
+        PantallaControlContenido(
+            tieneIR = true,
+            modoOscuro = true,
+            encendida = true,
+            teclaActual = TeclasControl.COLORES.first { it.nombre == "Amarillo oscuro" },
+            efectoActivo = null,
+            onAlternarTema = {}, onEncender = {}, onApagar = {},
+            onSubirBrillo = {}, onBajarBrillo = {}, onTecla = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "Efecto activo", heightDp = 800)
+@Composable
+private fun PreviewEfecto() {
+    RGBV10Theme(darkTheme = true, dynamicColor = false) {
+        PantallaControlContenido(
+            tieneIR = true,
+            modoOscuro = true,
+            encendida = true,
+            teclaActual = TeclasControl.COLORES[2],
+            efectoActivo = TeclasControl.EFECTOS.first { it.nombre == "Smooth" },
             onAlternarTema = {}, onEncender = {}, onApagar = {},
             onSubirBrillo = {}, onBajarBrillo = {}, onTecla = {}
         )

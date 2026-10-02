@@ -28,9 +28,18 @@ class ControlViewModel(application: Application) : AndroidViewModel(application)
     private val _teclaActual = MutableStateFlow<Tecla?>(null)
     val teclaActual: StateFlow<Tecla?> = _teclaActual
 
+    // Efecto activo (Flash, Strobe, Fade, Smooth); un color fijo lo reemplaza, como en el control físico
+    private val _efectoActivo = MutableStateFlow<Tecla?>(null)
+    val efectoActivo: StateFlow<Tecla?> = _efectoActivo
+
     fun enviarTecla(tecla: Tecla) {
-        if (irController.enviar(tecla) && tecla in TeclasControl.COLORES) {
-            _teclaActual.value = tecla
+        if (!irController.enviar(tecla)) return
+        when (tecla) {
+            in TeclasControl.COLORES -> {
+                _teclaActual.value = tecla
+                _efectoActivo.value = null
+            }
+            in TeclasControl.EFECTOS -> _efectoActivo.value = tecla
         }
     }
 
