@@ -47,6 +47,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
+    // Widget de pantalla de inicio
+    implementation(libs.androidx.glance.appwidget)
+
     // Dependencias adicionales (sin duplicados con el catálogo)
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.1")

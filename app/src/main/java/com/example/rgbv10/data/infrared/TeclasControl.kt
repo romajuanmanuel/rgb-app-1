@@ -34,6 +34,12 @@ object TeclasControl {
         Tecla("Rosa", 0x00F76897, 255, 100, 170),
     )
 
+    /** Colores del widget de acceso rápido (los mismos objetos que usa la app). */
+    val ACCESO_RAPIDO: List<Tecla> =
+        listOf("Rosa", "Cian", "Naranja rojizo").map { nombre -> COLORES.first { it.nombre == nombre } }
+
+    fun porNombre(nombre: String): Tecla? = COLORES.firstOrNull { it.nombre == nombre }
+
     val EFECTOS = listOf(
         Tecla("Flash", 0x00F7D02F),
         Tecla("Strobe", 0x00F7F00F),

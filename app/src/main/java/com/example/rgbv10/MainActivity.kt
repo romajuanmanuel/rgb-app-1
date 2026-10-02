@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
@@ -66,11 +67,19 @@ import com.example.rgbv10.ui.components.marcoHud
 import com.example.rgbv10.ui.theme.RGBV10Theme
 
 class MainActivity : ComponentActivity() {
+    private val viewModel: ControlViewModel by viewModels()
+
+    override fun onResume() {
+        super.onResume()
+        // El widget pudo cambiar el estado de las luces mientras la app estaba en segundo plano
+        viewModel.sincronizar()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val viewModel: ControlViewModel = viewModel()
+            val viewModel = this.viewModel
             val modoOscuro by viewModel.modoOscuro.collectAsState()
 
             // Los íconos de las barras del sistema siguen al tema de la app, no al del sistema

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Círculo blanco: el widget lo tiñe con el color real de la tecla -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#FFFFFFFF" />
+    <size
+        android:width="34dp"
+        android:height="34dp" />
+</shape>
